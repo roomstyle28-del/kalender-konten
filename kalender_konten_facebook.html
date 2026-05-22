@@ -1,0 +1,981 @@
+<!DOCTYPE html>
+<html lang="id" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Facebook Content Grid - Spreadsheet & Checklist Kreator</title>
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- GunDB: Real-time P2P Sync -->
+    <script src="https://cdn.jsdelivr.net/npm/gun/gun.js"></script>
+    <!-- QRCode.js: HP-Laptop Sync pairing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        fb: {
+                            blue: '#1877F2',
+                            darkBlue: '#0e5fc2',
+                            lightBlue: '#e7f3ff',
+                            bg: '#f8fafc',
+                            card: '#ffffff',
+                            text: '#0f172a',
+                            textMuted: '#64748b',
+                            border: '#e2e8f0'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc;
+        }
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+    </style>
+</head>
+<body class="text-gray-800 antialiased min-h-screen flex flex-col">
+
+    <!-- Navbar -->
+    <nav class="bg-white border-b border-fb-border sticky top-0 z-40 shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16 items-center">
+                <!-- Logo -->
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 bg-fb-blue rounded-xl flex items-center justify-center shadow-sm text-white">
+                        <i class="fab fa-facebook text-xl"></i>
+                    </div>
+                    <div>
+                        <h1 class="font-extrabold text-lg text-gray-900 tracking-tight flex items-center gap-1">
+                            FB Content Grid <span class="text-fb-blue text-[10px] bg-fb-lightBlue px-2 py-0.5 rounded-full font-bold">Spreadsheet Mode</span>
+                        </h1>
+                        <p class="text-xs text-fb-textMuted -mt-1">Pengelola Rencana & Checklist Postingan</p>
+                    </div>
+                </div>
+                <!-- Status Sinkronisasi Realtime -->
+                <div class="flex items-center space-x-2">
+                    <button id="sync-status-btn" class="flex items-center space-x-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all">
+                        <span id="sync-indicator-dot" class="w-2.5 h-2.5 rounded-full bg-slate-400"></span>
+                        <span id="sync-status-text">Lokal Saja</span>
+                    </button>
+                    <div class="hidden md:flex bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-1.5 items-center gap-2 text-xs">
+                        <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                        <span class="font-semibold text-emerald-700" id="total-count-badge">0 Baris Konten</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        
+        <!-- Cloud Sync Top Invitation -->
+        <div id="sync-welcome-banner" class="bg-gradient-to-r from-slate-900 to-slate-800 text-white p-5 rounded-2xl shadow-sm mb-6 flex flex-col md:flex-row items-center justify-between gap-4 border border-slate-700">
+            <div class="flex items-center space-x-4">
+                <div class="p-3 bg-white bg-opacity-10 rounded-xl text-2xl text-fb-blue">
+                    <i class="fa-solid fa-cloud-arrow-up animate-pulse"></i>
+                </div>
+                <div>
+                    <h3 class="font-bold text-sm">Ingin edit di Laptop dan lihat checklist-nya langsung di HP?</h3>
+                    <p class="text-xs text-slate-400 mt-0.5">Aktifkan Cloud Sync, lalu scan barcode untuk menyambungkan kedua perangkat secara real-time.</p>
+                </div>
+            </div>
+            <button id="activate-sync-banner-btn" class="bg-fb-blue hover:bg-fb-darkBlue text-white font-bold text-xs py-2.5 px-5 rounded-xl transition-all shadow-md flex items-center gap-2">
+                <i class="fa-solid fa-rotate"></i>
+                Aktifkan Sinkronisasi HP
+            </button>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            
+            <!-- Left Side: Add / Edit Form -->
+            <section class="lg:col-span-4 bg-white p-6 rounded-2xl border border-fb-border shadow-sm self-start">
+                <div class="flex items-center space-x-3 mb-5 pb-3 border-b border-fb-border">
+                    <div class="w-8 h-8 rounded-lg bg-fb-lightBlue text-fb-blue flex items-center justify-center">
+                        <i class="fa-solid fa-plus text-sm"></i>
+                    </div>
+                    <h2 class="text-base font-bold text-slate-900">Buat Konten Baru</h2>
+                </div>
+
+                <form id="content-form" class="space-y-4">
+                    <!-- Title Input -->
+                    <div>
+                        <label for="post-title" class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Judul / Tema Konten *</label>
+                        <input type="text" id="post-title" required placeholder="Contoh: Promo Diskon Akhir Bulan" 
+                            class="w-full px-3 py-2.5 border border-slate-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-fb-blue focus:border-fb-blue text-sm">
+                    </div>
+
+                    <!-- Image Attachment Input -->
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Gambar / Thumbnail</label>
+                        <div class="mt-1 flex justify-center px-4 pt-4 pb-4 border-2 border-slate-200 border-dashed rounded-xl hover:border-fb-blue transition-colors cursor-pointer relative group bg-slate-50" id="drop-zone">
+                            <div class="space-y-1 text-center" id="upload-prompt">
+                                <i class="fa-solid fa-image text-2xl text-slate-400 group-hover:text-fb-blue transition-colors"></i>
+                                <div class="text-xs text-slate-500">
+                                    <span class="font-semibold text-fb-blue">Pilih file gambar</span> atau seret
+                                </div>
+                            </div>
+                            <!-- Live Image Preview Box -->
+                            <div class="hidden w-full h-36 relative rounded-lg overflow-hidden" id="preview-container">
+                                <img src="" id="image-preview" class="w-full h-full object-cover" alt="Pratinjau Gambar">
+                                <button type="button" id="remove-img-btn" class="absolute top-1.5 right-1.5 bg-rose-600 hover:bg-rose-700 text-white p-1.5 rounded-full shadow-md transition-all">
+                                    <i class="fa-solid fa-trash text-[10px]"></i>
+                                </button>
+                            </div>
+                            <input id="post-image" type="file" accept="image/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" style="display: none;">
+                        </div>
+                    </div>
+
+                    <!-- Textarea Caption -->
+                    <div>
+                        <label for="post-caption" class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Teks Caption Facebook *</label>
+                        <textarea id="post-caption" required rows="4" placeholder="Tulis caption postingan yang panjang dan menarik di sini... Sertakan hashtag juga." 
+                            class="w-full p-3 border border-slate-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-fb-blue focus:border-fb-blue text-sm resize-none"></textarea>
+                    </div>
+
+                    <!-- Optional Date/Time Accordion -->
+                    <div class="border border-slate-200 rounded-xl p-3 bg-slate-50">
+                        <button type="button" id="toggle-optional-btn" class="w-full flex items-center justify-between text-xs font-bold text-slate-600 focus:outline-none">
+                            <span>PENGATURAN WAKTU (OPSIONAL)</span>
+                            <i class="fa-solid fa-chevron-down transition-transform duration-200" id="chevron-icon"></i>
+                        </button>
+                        <div id="optional-fields" class="hidden space-y-3 mt-3 pt-3 border-t border-slate-200">
+                            <div class="grid grid-cols-2 gap-2">
+                                <div>
+                                    <label for="post-date" class="block text-[10px] font-semibold text-slate-500 mb-1">Tanggal</label>
+                                    <input type="date" id="post-date" class="w-full p-2 border border-slate-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-fb-blue">
+                                </div>
+                                <div>
+                                    <label for="post-time" class="block text-[10px] font-semibold text-slate-500 mb-1">Jam Tayang</label>
+                                    <input type="time" id="post-time" class="w-full p-2 border border-slate-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-fb-blue">
+                                </div>
+                            </div>
+                            <p class="text-[10px] text-slate-400 leading-relaxed">Kosongkan jika Anda tidak ingin mengatur jadwal waktu tertentu untuk konten ini.</p>
+                        </div>
+                    </div>
+
+                    <!-- Submit Button -->
+                    <button type="submit" class="w-full bg-fb-blue hover:bg-fb-darkBlue text-white font-bold py-3 px-4 rounded-xl shadow-sm hover:shadow-md transition-all flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-circle-plus"></i>
+                        Tambahkan ke Tabel
+                    </button>
+                </form>
+            </section>
+
+            <!-- Right Side: Spreadsheet Spreadsheet Grid -->
+            <section class="lg:col-span-8 flex flex-col space-y-4">
+                
+                <!-- Filters / Search Bar -->
+                <div class="bg-white p-4 rounded-2xl border border-fb-border shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <!-- Search Input -->
+                    <div class="relative w-full sm:max-w-md">
+                        <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400">
+                            <i class="fa-solid fa-magnifying-glass text-xs"></i>
+                        </span>
+                        <input type="text" id="search-input" placeholder="Cari berdasarkan judul atau isi caption..." 
+                            class="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-fb-blue">
+                    </div>
+                    
+                    <!-- Quick Filter State Status -->
+                    <div class="flex items-center gap-2 w-full sm:w-auto justify-end">
+                        <label class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Filter:</label>
+                        <select id="filter-status" class="bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 px-3 py-2 focus:outline-none focus:ring-1 focus:ring-fb-blue">
+                            <option value="Semua">Semua Konten</option>
+                            <option value="Belum Posting">⏳ Belum Diposting</option>
+                            <option value="Sudah Diposting">✅ Sudah Diposting</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Custom Spreadsheet Table Container -->
+                <div class="bg-white rounded-2xl border border-fb-border shadow-sm overflow-hidden">
+                    
+                    <!-- Table Header Controls -->
+                    <div class="p-4 bg-slate-50 border-b border-fb-border flex justify-between items-center">
+                        <div class="flex items-center gap-2">
+                            <i class="fa-solid fa-table-list text-fb-blue"></i>
+                            <span class="text-xs font-bold text-slate-700 uppercase tracking-wider">Spreadsheet & Checklist Grid</span>
+                        </div>
+                        <span class="text-[10px] text-slate-400 font-semibold">Klik Checklist di sebelah kiri untuk mengubah status</span>
+                    </div>
+
+                    <!-- Responsive Horizontal Container -->
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-slate-100">
+                            <thead class="bg-slate-50">
+                                <tr>
+                                    <th scope="col" class="w-16 px-4 py-3 text-center text-xs font-bold text-slate-400 uppercase tracking-wider">Status</th>
+                                    <th scope="col" class="w-24 px-3 py-3 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">Gambar</th>
+                                    <th scope="col" class="px-4 py-3 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">Detail Konten (Judul & Caption)</th>
+                                    <th scope="col" class="w-40 px-4 py-3 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">Waktu (Opsional)</th>
+                                    <th scope="col" class="w-24 px-4 py-3 text-center text-xs font-bold text-slate-400 uppercase tracking-wider">Aksi</th>
+                                </tr>
+                            </thead>
+                            
+                            <tbody id="spreadsheet-tbody" class="bg-white divide-y divide-slate-100">
+                                <!-- Dynamic rows will be injected here -->
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Empty State Placeholder inside Table -->
+                    <div id="empty-state" class="hidden p-12 text-center flex flex-col items-center justify-center space-y-3">
+                        <div class="w-12 h-12 bg-slate-100 text-slate-400 rounded-full flex items-center justify-center text-xl">
+                            <i class="fa-solid fa-clipboard-question"></i>
+                        </div>
+                        <div>
+                            <p class="text-sm font-bold text-slate-700">Tabel Konten Masih Kosong</p>
+                            <p class="text-xs text-slate-400 mt-1">Masukkan rencana konten pertama Anda di formulir sebelah kiri!</p>
+                        </div>
+                    </div>
+
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <!-- Modal: Real-time Cloud Sync (QR Code) -->
+    <div id="sync-modal" class="fixed inset-0 z-50 overflow-y-auto hidden" role="dialog" aria-modal="true">
+        <div class="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <!-- Background Overlay -->
+            <div class="fixed inset-0 bg-slate-900 bg-opacity-75 transition-opacity" id="close-sync-overlay"></div>
+
+            <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+
+            <!-- Panel Modal -->
+            <div class="inline-block align-middle bg-white rounded-3xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-md sm:w-full border border-fb-border">
+                <div class="bg-white px-6 pt-6 pb-5">
+                    <div class="flex items-center justify-between border-b pb-3 mb-4">
+                        <h3 class="text-base font-bold text-slate-900 flex items-center gap-2">
+                            <i class="fa-solid fa-tower-broadcast text-fb-blue animate-pulse"></i>
+                            Sambungkan HP & Laptop
+                        </h3>
+                        <button id="close-sync-btn" class="text-slate-400 hover:text-slate-600">
+                            <i class="fa-solid fa-xmark text-lg"></i>
+                        </button>
+                    </div>
+
+                    <div class="text-center space-y-4">
+                        <p class="text-xs text-slate-500">Scan kode QR di bawah menggunakan kamera HP Anda untuk membuka, mengedit, dan mencentang tabel ini secara sinkron dan otomatis.</p>
+                        
+                        <!-- QR Code Canvas -->
+                        <div class="bg-slate-50 p-3 rounded-2xl flex justify-center items-center inline-block border mx-auto w-44 h-44" id="qrcode-container">
+                            <div id="sync-qrcode" class="w-full h-full flex items-center justify-center"></div>
+                        </div>
+
+                        <!-- Sync Link block -->
+                        <div class="bg-slate-50 border border-slate-200 p-3 rounded-xl">
+                            <span class="text-[10px] text-slate-400 font-bold block uppercase tracking-wider mb-1">Kode Sesi Sinkronisasi</span>
+                            <span class="text-lg font-extrabold text-fb-blue tracking-widest" id="sync-room-code-display">------</span>
+                        </div>
+
+                        <div class="flex flex-col gap-2 pt-1">
+                            <button id="copy-sync-link-btn" class="w-full bg-slate-900 hover:bg-black text-white font-bold py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-2 transition-all">
+                                <i class="fa-solid fa-share-nodes"></i>
+                                Salin Tautan Sinkronisasi HP
+                            </button>
+                            
+                            <!-- Manual Join -->
+                            <div class="pt-3 border-t border-dashed border-slate-200">
+                                <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 text-left">Masukkan Sesi Sync Lain:</label>
+                                <div class="flex gap-2">
+                                    <input type="text" id="manual-room-input" placeholder="KODE 6-DIGIT" class="flex-grow px-3 py-2 border rounded-lg text-xs uppercase font-mono tracking-widest focus:outline-none focus:ring-1 focus:ring-fb-blue">
+                                    <button id="manual-room-btn" class="bg-fb-blue hover:bg-fb-darkBlue text-white px-4 py-2 rounded-lg text-xs font-bold transition-colors">Hubungkan</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Modal: Delete Row Confirmation -->
+    <div id="delete-modal" class="fixed inset-0 z-50 overflow-y-auto hidden" role="dialog" aria-modal="true">
+        <div class="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <!-- Background Overlay -->
+            <div class="fixed inset-0 bg-slate-900 bg-opacity-75 transition-opacity" id="close-modal-overlay"></div>
+
+            <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+
+            <!-- Modal Panel -->
+            <div class="inline-block align-middle bg-white rounded-2xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-md sm:w-full border border-fb-border">
+                <div class="bg-white px-6 pt-6 pb-4">
+                    <div class="flex items-start space-x-3">
+                        <div class="flex-shrink-0 flex items-center justify-center h-10 w-10 rounded-full bg-rose-100 text-rose-600">
+                            <i class="fa-solid fa-circle-exclamation text-lg"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-base font-bold text-slate-900">Hapus Baris Konten?</h3>
+                            <p class="text-xs text-slate-500 mt-2">Tindakan ini tidak bisa dibatalkan. Baris terpilih beserta gambarnya akan dihapus dari seluruh perangkat Anda.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-slate-50 px-6 py-3 flex justify-end gap-2">
+                    <button type="button" id="cancel-delete-btn" class="px-4 py-2 border border-slate-200 rounded-xl text-xs font-bold text-slate-500 bg-white hover:bg-slate-50 transition-colors">
+                        Batal
+                    </button>
+                    <button type="button" id="confirm-delete-btn" class="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition-colors">
+                        Ya, Hapus
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification Overlay -->
+    <div id="toast" class="fixed bottom-5 right-5 z-50 transform translate-y-20 opacity-0 transition-all duration-300 flex items-center bg-slate-900 text-white px-4 py-3 rounded-xl shadow-2xl space-x-3 max-w-sm">
+        <div id="toast-icon" class="text-emerald-400">
+            <i class="fa-solid fa-circle-check text-lg"></i>
+        </div>
+        <p id="toast-message" class="text-xs font-medium">Sukses memperbarui data!</p>
+    </div>
+
+    <!-- Footer -->
+    <footer class="bg-white border-t border-fb-border py-4 mt-12">
+        <div class="max-w-7xl mx-auto px-4 text-center">
+            <p class="text-[10px] text-fb-textMuted">&copy; 2026 FB Content Grid. Semua data terenkripsi lokal dan siap sync P2P tanpa akun.</p>
+        </div>
+    </footer>
+
+    <script>
+        // State variables
+        let schedules = [];
+        let itemToDeleteId = null;
+        let selectedBase64Image = "";
+        
+        // P2P Sync States
+        let activeRoomId = null; 
+        let gunInstance = null;
+        let gunRoomReference = null;
+        let qrCodeInstance = null;
+
+        // Default Placeholder Image
+        const fallbackImage = 'https://placehold.co/100x100/e2e8f0/64748b?text=Kreatif';
+
+        // Cache DOM Elements
+        const form = document.getElementById('content-form');
+        const titleInput = document.getElementById('post-title');
+        const dateInput = document.getElementById('post-date');
+        const timeInput = document.getElementById('post-time');
+        const imageFileInput = document.getElementById('post-image');
+        const captionInput = document.getElementById('post-caption');
+        const imagePreview = document.getElementById('image-preview');
+        const previewContainer = document.getElementById('preview-container');
+        const uploadPrompt = document.getElementById('upload-prompt');
+        const removeImgBtn = document.getElementById('remove-img-btn');
+        const dropZone = document.getElementById('drop-zone');
+
+        const tbody = document.getElementById('spreadsheet-tbody');
+        const emptyState = document.getElementById('empty-state');
+        const searchInput = document.getElementById('search-input');
+        const filterStatus = document.getElementById('filter-status');
+
+        // Optional Toggle Accordion Elements
+        const toggleOptionalBtn = document.getElementById('toggle-optional-btn');
+        const optionalFields = document.getElementById('optional-fields');
+        const chevronIcon = document.getElementById('chevron-icon');
+
+        // Modal Elements
+        const deleteModal = document.getElementById('delete-modal');
+        const confirmDeleteBtn = document.getElementById('confirm-delete-btn');
+        const cancelDeleteBtn = document.getElementById('cancel-delete-btn');
+        const closeModalOverlay = document.getElementById('close-modal-overlay');
+
+        // Sync Modal Elements
+        const syncModal = document.getElementById('sync-modal');
+        const syncStatusBtn = document.getElementById('sync-status-btn');
+        const syncIndicatorDot = document.getElementById('sync-indicator-dot');
+        const syncStatusText = document.getElementById('sync-status-text');
+        const closeSyncBtn = document.getElementById('close-sync-btn');
+        const closeSyncOverlay = document.getElementById('close-sync-overlay');
+        const activateSyncBannerBtn = document.getElementById('activate-sync-banner-btn');
+        const syncWelcomeBanner = document.getElementById('sync-welcome-banner');
+        const syncRoomCodeDisplay = document.getElementById('sync-room-code-display');
+        const copySyncLinkBtn = document.getElementById('copy-sync-link-btn');
+        const manualRoomInput = document.getElementById('manual-room-input');
+        const manualRoomBtn = document.getElementById('manual-room-btn');
+
+        window.onload = function() {
+            // Load LocalStorage
+            try {
+                const stored = localStorage.getItem('fb_grid_schedules');
+                schedules = stored ? JSON.parse(stored) : [];
+            } catch (e) {
+                console.error("Gagal memuat local data.", e);
+                schedules = [];
+            }
+            
+            // Check routing sync from URL parameters (e.g. ?sync=ROOM_ID)
+            const urlParams = new URLSearchParams(window.location.search);
+            const syncParam = urlParams.get('sync');
+            
+            setupEventListeners();
+            
+            if (syncParam) {
+                activeRoomId = syncParam.toUpperCase();
+                localStorage.setItem('fb_active_grid_room', activeRoomId);
+                initializeRealtimeSync(activeRoomId);
+                window.history.replaceState({}, document.title, window.location.pathname);
+                showToast(`Berhasil tersambung ke ruang: ${activeRoomId}!`, "success");
+            } else {
+                const savedRoom = localStorage.getItem('fb_active_grid_room');
+                if (savedRoom) {
+                    activeRoomId = savedRoom;
+                    initializeRealtimeSync(activeRoomId);
+                }
+            }
+
+            renderDashboard();
+        };
+
+        function setupEventListeners() {
+            // Optional Fields Toggle Trigger
+            toggleOptionalBtn.addEventListener('click', () => {
+                const isHidden = optionalFields.classList.contains('hidden');
+                if (isHidden) {
+                    optionalFields.classList.remove('hidden');
+                    chevronIcon.classList.add('rotate-180');
+                } else {
+                    optionalFields.classList.add('hidden');
+                    chevronIcon.classList.remove('rotate-180');
+                }
+            });
+
+            // Drag-and-Drop Image handlers
+            dropZone.addEventListener('click', () => {
+                if (selectedBase64Image === "") {
+                    imageFileInput.click();
+                }
+            });
+
+            imageFileInput.addEventListener('change', handleImageUpload);
+            removeImgBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                clearImageUpload();
+            });
+
+            // Submission Handling
+            form.addEventListener('submit', handleFormSubmit);
+
+            // Filtering
+            searchInput.addEventListener('input', renderDashboard);
+            filterStatus.addEventListener('change', renderDashboard);
+
+            // Delete confirmations
+            cancelDeleteBtn.addEventListener('click', hideDeleteModal);
+            closeModalOverlay.addEventListener('click', hideDeleteModal);
+            confirmDeleteBtn.addEventListener('click', processDeleteItem);
+
+            // Sync interactions
+            syncStatusBtn.addEventListener('click', openSyncModal);
+            activateSyncBannerBtn.addEventListener('click', () => {
+                if (!activeRoomId) {
+                    activeRoomId = generateRandomRoomId();
+                    localStorage.setItem('fb_active_grid_room', activeRoomId);
+                    initializeRealtimeSync(activeRoomId);
+                }
+                openSyncModal();
+            });
+            closeSyncBtn.addEventListener('click', closeSyncModal);
+            closeSyncOverlay.addEventListener('click', closeSyncModal);
+            copySyncLinkBtn.addEventListener('click', copySyncLink);
+            manualRoomBtn.addEventListener('click', handleManualRoomJoin);
+        }
+
+        function handleImageUpload(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            if (!file.type.startsWith('image/')) {
+                showToast("File harus berupa gambar valid!", "error");
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const img = new Image();
+                img.onload = function() {
+                    // Compress image dimensions to save LocalStorage limit (Max width/height 320px)
+                    const MAX_WIDTH = 320;
+                    const MAX_HEIGHT = 320;
+                    let width = img.width;
+                    let height = img.height;
+
+                    if (width > height) {
+                        if (width > MAX_WIDTH) {
+                            height *= MAX_WIDTH / width;
+                            width = MAX_WIDTH;
+                        }
+                    } else {
+                        if (height > MAX_HEIGHT) {
+                            width *= MAX_HEIGHT / height;
+                            height = MAX_HEIGHT;
+                        }
+                    }
+
+                    const canvas = document.createElement('canvas');
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+
+                    selectedBase64Image = canvas.toDataURL('image/jpeg', 0.65);
+
+                    imagePreview.src = selectedBase64Image;
+                    uploadPrompt.classList.add('hidden');
+                    previewContainer.classList.remove('hidden');
+                };
+                img.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function clearImageUpload() {
+            imageFileInput.value = "";
+            selectedBase64Image = "";
+            imagePreview.src = "";
+            previewContainer.classList.add('hidden');
+            uploadPrompt.classList.remove('hidden');
+        }
+
+        function initializeRealtimeSync(roomId) {
+            try {
+                syncWelcomeBanner.classList.add('hidden');
+                
+                // Initialize GunDB public relay nodes
+                gunInstance = Gun([
+                    'https://gun-manhattan.herokuapp.com/gun',
+                    'https://raw-gun.herokuapp.com/gun'
+                ]);
+                
+                gunRoomReference = gunInstance.get('fb_spread_sync_' + roomId);
+                
+                syncIndicatorDot.classList.remove('bg-slate-400');
+                syncIndicatorDot.classList.add('bg-emerald-500', 'animate-pulse');
+                syncStatusText.innerText = `Sync: ${roomId}`;
+                
+                // Listen to GunDB node updates mapping
+                gunRoomReference.map().on((data, id) => {
+                    if (!data) return;
+                    
+                    if (data.isDeleted) {
+                        const index = schedules.findIndex(s => s.id === id);
+                        if (index !== -1) {
+                            schedules.splice(index, 1);
+                            saveToLocalStorageOnly();
+                            renderDashboard();
+                        }
+                    } else {
+                        const index = schedules.findIndex(s => s.id === id);
+                        const updatedPost = {
+                            id: data.id,
+                            title: data.title,
+                            date: data.date || "",
+                            time: data.time || "",
+                            status: data.status, // "Belum Posting" or "Sudah Diposting"
+                            image: data.image,
+                            caption: data.caption,
+                            updatedAt: data.updatedAt || new Date().toISOString()
+                        };
+
+                        if (index === -1) {
+                            schedules.push(updatedPost);
+                        } else {
+                            const localTime = new Date(schedules[index].updatedAt || 0).getTime();
+                            const remoteTime = new Date(updatedPost.updatedAt).getTime();
+                            if (remoteTime > localTime) {
+                                schedules[index] = updatedPost;
+                            }
+                        }
+                        saveToLocalStorageOnly();
+                        renderDashboard();
+                    }
+                });
+            } catch (err) {
+                console.error("Gagal melakukan inisialisasi cloud sync.", err);
+                showToast("Berjalan dalam mode luring.", "error");
+            }
+        }
+
+        function generateRandomRoomId() {
+            const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Cleaned characters
+            let result = '';
+            for (let i = 0; i < 6; i++) {
+                result += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            return result;
+        }
+
+        function handleFormSubmit(e) {
+            e.preventDefault();
+
+            const timestamp = new Date().toISOString();
+            const newPost = {
+                id: 'fb-grid-' + Date.now(),
+                title: titleInput.value.trim(),
+                date: dateInput.value || "",
+                time: timeInput.value || "",
+                status: "Belum Posting", // Default initially to unchecked
+                image: selectedBase64Image || fallbackImage,
+                caption: captionInput.value.trim(),
+                updatedAt: timestamp
+            };
+
+            schedules.push(newPost);
+            saveToLocalStorageOnly();
+
+            // Push to cloud node if active
+            if (activeRoomId && gunRoomReference) {
+                gunRoomReference.get(newPost.id).put({
+                    ...newPost,
+                    isDeleted: false
+                });
+            }
+
+            renderDashboard();
+
+            // Reset Form Fields
+            form.reset();
+            clearImageUpload();
+            showToast("Konten baru berhasil dimasukkan ke tabel!", "success");
+        }
+
+        function saveToLocalStorageOnly() {
+            try {
+                localStorage.setItem('fb_grid_schedules', JSON.stringify(schedules));
+            } catch (e) {
+                console.error("Storage penuh.", e);
+            }
+        }
+
+        function toggleCheckStatus(id, isChecked) {
+            const index = schedules.findIndex(item => item.id === id);
+            if (index === -1) return;
+
+            const newStatus = isChecked ? "Sudah Diposting" : "Belum Posting";
+            const timestamp = new Date().toISOString();
+
+            schedules[index].status = newStatus;
+            schedules[index].updatedAt = timestamp;
+
+            saveToLocalStorageOnly();
+
+            // Synced P2P instantly
+            if (activeRoomId && gunRoomReference) {
+                gunRoomReference.get(id).put({
+                    ...schedules[index],
+                    status: newStatus,
+                    updatedAt: timestamp
+                });
+            }
+
+            renderDashboard();
+            showToast(isChecked ? "Status: Sudah Diposting! 🎉" : "Status diubah ke Belum Posting.", "success");
+        }
+
+        function formatDateTimeDisplay(dateStr, timeStr) {
+            if (!dateStr && !timeStr) {
+                return `<span class="text-slate-300 italic">Tidak diatur</span>`;
+            }
+
+            let result = "";
+            if (dateStr) {
+                try {
+                    const parsedDate = new Date(dateStr);
+                    const options = { month: 'short', day: 'numeric', year: 'numeric' };
+                    result += `<div class="font-bold text-slate-700">${parsedDate.toLocaleDateString('id-ID', options)}</div>`;
+                } catch (e) {
+                    result += `<div class="font-bold text-slate-700">${dateStr}</div>`;
+                }
+            }
+            if (timeStr) {
+                result += `<div class="text-[10px] text-slate-500 font-mono"><i class="fa-regular fa-clock mr-1"></i>${timeStr}</div>`;
+            }
+            return result;
+        }
+
+        function renderDashboard() {
+            const searchTerm = searchInput.value.toLowerCase().trim();
+            const activeFilter = filterStatus.value;
+
+            // Simple search & filter memory operation (Rule 2: No Complex Firestore / DB Queries)
+            let filtered = schedules.filter(item => {
+                const matchesSearch = item.title.toLowerCase().includes(searchTerm) || 
+                                      item.caption.toLowerCase().includes(searchTerm);
+                const matchesFilter = activeFilter === 'Semua' || item.status === activeFilter;
+                return matchesSearch && matchesFilter;
+            });
+
+            // Sort chronologically (earliest first, and let empty optional dates reside at the bottom)
+            filtered.sort((a, b) => {
+                if (!a.date && b.date) return 1;
+                if (a.date && !b.date) return -1;
+                if (!a.date && !b.date) return 0;
+                
+                const combinedA = new Date(`${a.date}T${a.time || "00:00"}`);
+                const combinedB = new Date(`${b.date}T${b.time || "00:00"}`);
+                return combinedA - combinedB;
+            });
+
+            // Update simple count badges
+            document.getElementById('total-count-badge').innerText = `${schedules.length} Baris Konten`;
+
+            // Clear current table rows
+            tbody.innerHTML = "";
+
+            if (filtered.length === 0) {
+                emptyState.classList.remove('hidden');
+                return;
+            }
+            emptyState.classList.add('hidden');
+
+            filtered.forEach(item => {
+                const isChecked = item.status === "Sudah Diposting";
+                const tr = document.createElement('tr');
+                tr.className = `hover:bg-slate-50 transition-colors ${isChecked ? 'bg-emerald-50/20' : ''}`;
+
+                tr.innerHTML = `
+                    <!-- Column 1: Custom Toggle Checkbox -->
+                    <td class="px-4 py-4 text-center whitespace-nowrap">
+                        <div class="inline-flex items-center justify-center">
+                            <label class="relative flex items-center cursor-pointer">
+                                <input type="checkbox" ${isChecked ? 'checked' : ''} 
+                                    onchange="toggleCheckStatus('${item.id}', this.checked)"
+                                    class="peer sr-only">
+                                <div class="w-6 h-6 border-2 border-slate-300 rounded-full flex items-center justify-center transition-all bg-white peer-checked:bg-emerald-500 peer-checked:border-emerald-500 hover:scale-110">
+                                    <i class="fa-solid fa-check text-white text-xs opacity-0 peer-checked:opacity-100 transition-opacity"></i>
+                                </div>
+                            </label>
+                        </div>
+                    </td>
+
+                    <!-- Column 2: Compact Mini Image -->
+                    <td class="px-3 py-4 whitespace-nowrap">
+                        <div class="w-16 h-16 rounded-xl overflow-hidden border border-slate-200 bg-slate-100 flex-shrink-0">
+                            <img src="${item.image}" alt="Thumb" class="w-full h-full object-cover">
+                        </div>
+                    </td>
+
+                    <!-- Column 3: Title and Caption details with copy link inside -->
+                    <td class="px-4 py-4">
+                        <div class="flex flex-col">
+                            <span class="text-xs font-bold transition-all ${isChecked ? 'line-through text-slate-400' : 'text-slate-800'}">
+                                ${item.title}
+                            </span>
+                            
+                            <!-- Truncated/Scrollable Caption element -->
+                            <div class="mt-1 bg-slate-50 border border-slate-100 rounded-lg p-2 font-mono text-[11px] text-slate-600 max-h-16 overflow-y-auto whitespace-pre-wrap" id="cap-${item.id}">${item.caption}</div>
+                        </div>
+                    </td>
+
+                    <!-- Column 4: Optional Time / Date -->
+                    <td class="px-4 py-4 text-xs whitespace-nowrap">
+                        ${formatDateTimeDisplay(item.date, item.time)}
+                    </td>
+
+                    <!-- Column 5: Action Button triggers -->
+                    <td class="px-4 py-4 text-center whitespace-nowrap text-xs font-semibold">
+                        <div class="flex items-center justify-center gap-2">
+                            <button onclick="copyCaption('${item.id}', this)" class="bg-fb-lightBlue text-fb-blue hover:bg-blue-100 px-3 py-2 rounded-lg transition-all" title="Salin Teks">
+                                <i class="fa-solid fa-copy"></i>
+                            </button>
+                            <button onclick="triggerDeletePost('${item.id}')" class="text-rose-500 hover:bg-rose-50 px-3 py-2 rounded-lg transition-all" title="Hapus">
+                                <i class="fa-solid fa-trash-can"></i>
+                            </button>
+                        </div>
+                    </td>
+                `;
+
+                tbody.appendChild(tr);
+            });
+        }
+
+        function copyCaption(id, btnElement) {
+            const rawText = document.getElementById(`cap-${id}`).innerText;
+            
+            const tempTextArea = document.createElement('textarea');
+            tempTextArea.value = rawText;
+            document.body.appendChild(tempTextArea);
+            tempTextArea.select();
+            
+            try {
+                const successful = document.execCommand('copy');
+                if (successful) {
+                    showSuccessBadge(btnElement);
+                    showToast("Caption disalin ke papan klip!", "success");
+                } else {
+                    showToast("Gagal menyalin.", "error");
+                }
+            } catch (err) {
+                showToast("Gagal menyalin.", "error");
+            }
+            document.body.removeChild(tempTextArea);
+        }
+
+        function showSuccessBadge(button) {
+            const originalIcon = button.innerHTML;
+            button.classList.remove('bg-fb-lightBlue', 'text-fb-blue', 'hover:bg-blue-100');
+            button.classList.add('bg-emerald-500', 'text-white');
+            button.innerHTML = `<i class="fa-solid fa-check"></i>`;
+            
+            setTimeout(() => {
+                button.classList.remove('bg-emerald-500', 'text-white');
+                button.classList.add('bg-fb-lightBlue', 'text-fb-blue', 'hover:bg-blue-100');
+                button.innerHTML = originalIcon;
+            }, 2000);
+        }
+
+        function triggerDeletePost(id) {
+            itemToDeleteId = id;
+            deleteModal.classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function hideDeleteModal() {
+            deleteModal.classList.add('hidden');
+            document.body.style.overflow = '';
+            itemToDeleteId = null;
+        }
+
+        function processDeleteItem() {
+            if (!itemToDeleteId) return;
+
+            schedules = schedules.filter(item => item.id !== itemToDeleteId);
+            saveToLocalStorageOnly();
+
+            if (activeRoomId && gunRoomReference) {
+                gunRoomReference.get(itemToDeleteId).put({
+                    isDeleted: true,
+                    updatedAt: new Date().toISOString()
+                });
+            }
+
+            renderDashboard();
+            hideDeleteModal();
+            showToast("Baris rencana konten telah dihapus.", "success");
+        }
+
+        function openSyncModal() {
+            if (!activeRoomId) {
+                activeRoomId = generateRandomRoomId();
+                localStorage.setItem('fb_active_grid_room', activeRoomId);
+                initializeRealtimeSync(activeRoomId);
+            }
+
+            syncRoomCodeDisplay.innerText = activeRoomId;
+
+            // Generate full routing url to sync P2P
+            const syncLink = `${window.location.origin}${window.location.pathname}?sync=${activeRoomId}`;
+
+            document.getElementById('sync-qrcode').innerHTML = "";
+
+            // Create QR Code
+            qrCodeInstance = new QRCode(document.getElementById("sync-qrcode"), {
+                text: syncLink,
+                width: 150,
+                height: 150,
+                colorDark : "#0f172a",
+                colorLight : "#f8fafc",
+                correctLevel : QRCode.CorrectLevel.M
+            });
+
+            syncModal.classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeSyncModal() {
+            syncModal.classList.add('hidden');
+            document.body.style.overflow = '';
+        }
+
+        function copySyncLink() {
+            const syncLink = `${window.location.origin}${window.location.pathname}?sync=${activeRoomId}`;
+            
+            const tempTextArea = document.createElement('textarea');
+            tempTextArea.value = syncLink;
+            document.body.appendChild(tempTextArea);
+            tempTextArea.select();
+            
+            try {
+                document.execCommand('copy');
+                showToast("Tautan pairing tersalin!", "success");
+            } catch (err) {
+                showToast("Gagal menyalin link.", "error");
+            }
+            document.body.removeChild(tempTextArea);
+        }
+
+        function handleManualRoomJoin() {
+            const code = manualRoomInput.value.trim().toUpperCase();
+            if (code.length < 4) {
+                showToast("Format Kode Sesi Salah!", "error");
+                return;
+            }
+
+            activeRoomId = code;
+            localStorage.setItem('fb_active_grid_room', activeRoomId);
+            initializeRealtimeSync(activeRoomId);
+            
+            manualRoomInput.value = "";
+            closeSyncModal();
+            showToast(`Mengalihkan sync ke sesi: ${activeRoomId}`, "success");
+        }
+
+        // Custom Toast System
+        function showToast(message, type = "success") {
+            const toast = document.getElementById('toast');
+            const toastMessage = document.getElementById('toast-message');
+            const toastIcon = document.getElementById('toast-icon');
+
+            toastMessage.innerText = message;
+
+            if (type === 'success') {
+                toastIcon.innerHTML = `<i class="fa-solid fa-circle-check text-sm"></i>`;
+                toastIcon.className = "text-emerald-400";
+            } else {
+                toastIcon.innerHTML = `<i class="fa-solid fa-triangle-exclamation text-sm"></i>`;
+                toastIcon.className = "text-rose-500";
+            }
+
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            toast.classList.add('translate-y-0', 'opacity-100');
+
+            setTimeout(() => {
+                toast.classList.remove('translate-y-0', 'opacity-100');
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
