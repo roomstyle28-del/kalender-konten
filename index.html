@@ -264,7 +264,7 @@
         </div>
     </main>
 
-    <!-- Modal: Real-time Cloud Sync (QR Code) -->
+    <!-- Modal: Real-time Cloud Sync (QR Code) with Local File Error Prevention -->
     <div id="sync-modal" class="fixed inset-0 z-50 overflow-y-auto hidden" role="dialog" aria-modal="true">
         <div class="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
             <!-- Background Overlay -->
@@ -273,7 +273,7 @@
             <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
 
             <!-- Panel Modal -->
-            <div class="inline-block align-middle bg-white rounded-3xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-md sm:w-full border border-fb-border">
+            <div class="inline-block align-middle bg-white rounded-3xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full border border-fb-border">
                 <div class="bg-white px-6 pt-6 pb-5">
                     <div class="flex items-center justify-between border-b pb-3 mb-4">
                         <h3 class="text-base font-bold text-slate-900 flex items-center gap-2">
@@ -285,11 +285,31 @@
                         </button>
                     </div>
 
+                    <!-- WARNING CARD IF OPENED AS LOCAL FILE -->
+                    <div id="file-protocol-warning" class="hidden bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-4 text-slate-700">
+                        <div class="flex items-start space-x-3">
+                            <span class="text-amber-500 text-lg mt-0.5"><i class="fa-solid fa-triangle-exclamation"></i></span>
+                            <div>
+                                <h4 class="font-extrabold text-xs text-amber-800 uppercase tracking-wide">Penyebab Scanner HP Error / Force Close</h4>
+                                <p class="text-xs text-amber-900 mt-1 leading-relaxed">
+                                    Anda membuka file HTML ini secara langsung (lokal) dari komputer Anda (<span class="font-mono bg-amber-100 px-1 rounded text-[11px]">file:///...</span>). HP Anda tidak bisa memindai file lokal harddisk komputer Anda, sehingga aplikasi kamera HP mengalami gangguan / *force close*.
+                                </p>
+                            </div>
+                        </div>
+                        <div class="mt-4 pt-3 border-t border-amber-200/50">
+                            <p class="text-xs font-bold text-slate-800 mb-2">Pilih salah satu cara mudah agar bisa sinkron:</p>
+                            <ul class="text-[11px] text-slate-600 space-y-2 list-decimal list-inside">
+                                <li><strong>Opsi A (Paling Mudah):</strong> Unggah file ini ke layanan hosting HTML gratisan seperti <a href="https://tiiny.host" target="_blank" class="text-fb-blue font-bold underline">Tiiny.host</a>, <a href="https://vercel.com" target="_blank" class="text-fb-blue font-bold underline">Vercel</a>, atau <a href="https://pages.github.com" target="_blank" class="text-fb-blue font-bold underline">GitHub Pages</a>. Setelah online, scan QR Code akan lancar 100%!</li>
+                                <li><strong>Opsi B (Lokal Server - Satu WiFi):</strong> Jalankan program server lokal (misalnya ekstensi <em>Live Server</em> di VS Code, atau XAMPP), lalu buka alamat IP komputer Anda di browser (misalnya: <span class="font-mono bg-slate-100 p-0.5 rounded text-slate-800 font-bold">http://192.168.1.15:5500</span>).</li>
+                            </ul>
+                        </div>
+                    </div>
+
                     <div class="text-center space-y-4">
-                        <p class="text-xs text-slate-500">Scan kode QR di bawah menggunakan kamera HP Anda untuk membuka, mengedit, dan mencentang tabel ini secara sinkron dan otomatis.</p>
+                        <p class="text-xs text-slate-500" id="sync-normal-description">Scan kode QR di bawah menggunakan kamera HP Anda untuk membuka, mengedit, dan mencentang tabel ini secara sinkron dan otomatis.</p>
                         
-                        <!-- QR Code Canvas -->
-                        <div class="bg-slate-50 p-3 rounded-2xl flex justify-center items-center inline-block border mx-auto w-44 h-44" id="qrcode-container">
+                        <!-- QR Code Canvas Container -->
+                        <div id="qr-code-wrapper" class="bg-slate-50 p-3 rounded-2xl flex justify-center items-center inline-block border mx-auto w-44 h-44">
                             <div id="sync-qrcode" class="w-full h-full flex items-center justify-center"></div>
                         </div>
 
@@ -603,7 +623,7 @@
                             title: data.title,
                             date: data.date || "",
                             time: data.time || "",
-                            status: data.status, // "Belum Posting" or "Sudah Diposting"
+                            status: data.status, 
                             image: data.image,
                             caption: data.caption,
                             updatedAt: data.updatedAt || new Date().toISOString()
@@ -629,7 +649,7 @@
         }
 
         function generateRandomRoomId() {
-            const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Cleaned characters
+            const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; 
             let result = '';
             for (let i = 0; i < 6; i++) {
                 result += chars.charAt(Math.floor(Math.random() * chars.length));
@@ -646,7 +666,7 @@
                 title: titleInput.value.trim(),
                 date: dateInput.value || "",
                 time: timeInput.value || "",
-                status: "Belum Posting", // Default initially to unchecked
+                status: "Belum Posting", 
                 image: selectedBase64Image || fallbackImage,
                 caption: captionInput.value.trim(),
                 updatedAt: timestamp
@@ -706,7 +726,7 @@
 
         function formatDateTimeDisplay(dateStr, timeStr) {
             if (!dateStr && !timeStr) {
-                return `<span class="text-slate-300 italic">Tidak diatur</span>`;
+                return `<span class="text-slate-300 italic text-[11px]">Tidak diatur</span>`;
             }
 
             let result = "";
@@ -714,13 +734,13 @@
                 try {
                     const parsedDate = new Date(dateStr);
                     const options = { month: 'short', day: 'numeric', year: 'numeric' };
-                    result += `<div class="font-bold text-slate-700">${parsedDate.toLocaleDateString('id-ID', options)}</div>`;
+                    result += `<div class="font-bold text-slate-700 text-xs">${parsedDate.toLocaleDateString('id-ID', options)}</div>`;
                 } catch (e) {
-                    result += `<div class="font-bold text-slate-700">${dateStr}</div>`;
+                    result += `<div class="font-bold text-slate-700 text-xs">${dateStr}</div>`;
                 }
             }
             if (timeStr) {
-                result += `<div class="text-[10px] text-slate-500 font-mono"><i class="fa-regular fa-clock mr-1"></i>${timeStr}</div>`;
+                result += `<div class="text-[10px] text-slate-500 font-mono mt-0.5"><i class="fa-regular fa-clock mr-1"></i>${timeStr}</div>`;
             }
             return result;
         }
@@ -729,7 +749,6 @@
             const searchTerm = searchInput.value.toLowerCase().trim();
             const activeFilter = filterStatus.value;
 
-            // Simple search & filter memory operation (Rule 2: No Complex Firestore / DB Queries)
             let filtered = schedules.filter(item => {
                 const matchesSearch = item.title.toLowerCase().includes(searchTerm) || 
                                       item.caption.toLowerCase().includes(searchTerm);
@@ -895,20 +914,36 @@
 
             syncRoomCodeDisplay.innerText = activeRoomId;
 
-            // Generate full routing url to sync P2P
-            const syncLink = `${window.location.origin}${window.location.pathname}?sync=${activeRoomId}`;
+            const isLocalFile = window.location.protocol === 'file:';
+            const warningCard = document.getElementById('file-protocol-warning');
+            const qrWrapper = document.getElementById('qr-code-wrapper');
+            const normalDesc = document.getElementById('sync-normal-description');
 
-            document.getElementById('sync-qrcode').innerHTML = "";
+            if (isLocalFile) {
+                // If loaded via local file://, hide QR and show descriptive helper card
+                warningCard.classList.remove('hidden');
+                qrWrapper.classList.add('hidden');
+                normalDesc.classList.add('hidden');
+            } else {
+                // If loaded via server (http:// or https://), display QR Code normally and safely
+                warningCard.classList.add('hidden');
+                qrWrapper.classList.remove('hidden');
+                normalDesc.classList.remove('hidden');
 
-            // Create QR Code
-            qrCodeInstance = new QRCode(document.getElementById("sync-qrcode"), {
-                text: syncLink,
-                width: 150,
-                height: 150,
-                colorDark : "#0f172a",
-                colorLight : "#f8fafc",
-                correctLevel : QRCode.CorrectLevel.M
-            });
+                // Generate full routing url to sync P2P
+                const syncLink = `${window.location.origin}${window.location.pathname}?sync=${activeRoomId}`;
+                document.getElementById('sync-qrcode').innerHTML = "";
+
+                // Create QR Code safely
+                qrCodeInstance = new QRCode(document.getElementById("sync-qrcode"), {
+                    text: syncLink,
+                    width: 150,
+                    height: 150,
+                    colorDark : "#0f172a",
+                    colorLight : "#f8fafc",
+                    correctLevel : QRCode.CorrectLevel.M
+                });
+            }
 
             syncModal.classList.remove('hidden');
             document.body.style.overflow = 'hidden';
