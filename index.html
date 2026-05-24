@@ -1,296 +1,950 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="id">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SocioGrid - Google Drive Sandbox</title>
-    <!-- Google Identity Services & Client Library -->
-    <script src="https://accounts.google.com/gsi/client" async defer></script>
-    <script src="https://apis.google.com/js/api.js" async defer></script>
+    <title>SocioGrid - Google Drive Content Planner</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Google Identity Services & Client Library dengan callback pendeteksi -->
+    <script src="https://accounts.google.com/gsi/client" onload="gisLoaded()" async defer></script>
+    <script src="https://apis.google.com/js/api.js" onload="gapiLoaded()" async defer></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
-        :root {
-            --primary: #4285f4;
-            --success: #34a853;
-            --dark: #202124;
-            --light: #f8f9fa;
-        }
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: var(--light);
-            color: var(--dark);
-            margin: 0;
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
+            font-family: 'Plus Jakarta Sans', sans-serif;
         }
-        .container {
-            max-width: 600px;
-            width: 100%;
-            background: white;
-            padding: 30px;
-            border-radius: 12px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-            text-align: center;
+        /* Penataan scrollbar kustom agar terlihat premium */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
         }
-        button {
-            background-color: var(--primary);
-            color: white;
-            border: none;
-            padding: 12px 24px;
-            font-size: 16px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-weight: 600;
-            transition: background 0.2s;
-            margin: 10px 0;
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
         }
-        button:hover { background-color: #357ae8; }
-        button:disabled { background-color: #ccc; cursor: not-allowed; }
-        .status {
-            margin: 15px 0;
-            padding: 10px;
-            border-radius: 6px;
-            font-size: 14px;
-            background-color: #e8f0fe;
-            color: #1967d2;
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 10px;
         }
-        textarea {
-            width: 100%;
-            height: 120px;
-            padding: 10px;
-            box-sizing: border-box;
-            border: 2px solid #dadce0;
-            border-radius: 6px;
-            margin-top: 15px;
-            font-family: inherit;
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569;
         }
-        .hidden { display: none; }
     </style>
 </head>
-<body>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col pb-12">
 
-<div class="container">
-    <h2>SocioGrid Drive Sandbox 📂</h2>
-    <p>Data tersimpan aman di Google Drive Anda sendiri.</p>
+    <!-- Header / Navigasi Utama -->
+    <header class="bg-slate-900/80 backdrop-blur-md border-b border-slate-800 sticky top-0 z-40">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center gap-2.5">
+                <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/20">
+                    <i data-lucide="layout-grid" class="text-white w-5 h-5"></i>
+                </div>
+                <div>
+                    <h1 class="text-sm sm:text-base font-extrabold bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent leading-none">SocioGrid</h1>
+                    <p class="text-[9px] text-slate-400 tracking-wider uppercase mt-1">Google Drive Auto-Sync</p>
+                </div>
+            </div>
 
-    <!-- Tombol Login / Log Out -->
-    <button id="auth_btn" onclick="handleAuthClick()">Hubungkan Akun Google</button>
-    <button id="signout_btn" class="hidden" onclick="handleSignoutClick()">Putuskan Koneksi</button>
+            <!-- Header Panel Aksi -->
+            <div class="flex items-center gap-2">
+                <button onclick="toggleBackupModal()" class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-300 bg-slate-800 hover:bg-slate-700 rounded-xl transition border border-slate-700">
+                    <i data-lucide="download-cloud" class="w-3.5 h-3.5 text-indigo-400"></i>
+                    <span class="hidden sm:inline">Backup & Ekspor</span>
+                </button>
+                <div id="driveStatus" class="text-[10px] font-semibold px-2.5 py-1 rounded-full flex items-center gap-1.5 bg-slate-800 border border-slate-700 text-slate-400">
+                    <span class="w-1.5 h-1.5 rounded-full bg-slate-500 animate-pulse"></span>
+                    <span id="statusLabel">Offline (Lokal)</span>
+                </div>
+            </div>
+        </div>
+    </header>
 
-    <div id="status_msg" class="status">Status: Belum Terhubung</div>
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-grow w-full space-y-6">
 
-    <!-- Area Input Data Konten -->
-    <div id="app_content" class="hidden">
-        <h3>Kalender Konten Saya</h3>
-        <textarea id="content_data" placeholder="Ketik data konten/jadwal di sini (Akan diubah jadi JSON)..."></textarea>
-        <br>
-        <button id="save_btn" onclick="saveDataToDrive()">Simpan ke Google Drive</button>
+        <!-- Area Login Google Drive (Muncul otomatis jika API Key global sudah diisi) -->
+        <div id="loginSection" class="bg-slate-900 border border-slate-800 rounded-2xl p-6 text-center hidden shadow-xl shadow-slate-950/50">
+            <div class="w-12 h-12 bg-indigo-500/10 rounded-full flex items-center justify-center mx-auto mb-3 text-indigo-400 border border-indigo-500/20">
+                <i data-lucide="cloud-lightning" class="w-6 h-6"></i>
+            </div>
+            <h3 class="text-sm font-bold text-slate-200">Koneksi Sinkronisasi Google Drive</h3>
+            <p class="text-xs text-slate-400 max-w-md mx-auto mt-1 mb-4">Masuk untuk mengaktifkan sinkronisasi otomatis. Data Anda aman tersimpan di folder rahasia Google Drive milik pribadi Anda sendiri.</p>
+            <button id="auth_btn" onclick="handleAuthClick()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-5 rounded-xl text-xs flex items-center gap-2 mx-auto transition shadow-lg shadow-indigo-600/10">
+                <i data-lucide="log-in" class="w-4 h-4"></i>
+                Hubungkan Akun Google
+            </button>
+            <button id="signout_btn" onclick="handleSignoutClick()" class="bg-rose-600/10 hover:bg-rose-600/20 text-rose-400 border border-rose-500/20 font-bold py-2 px-5 rounded-xl text-xs flex items-center gap-2 mx-auto transition hidden">
+                <i data-lucide="log-out" class="w-4 h-4"></i>
+                Putuskan Sesi Google
+            </button>
+        </div>
+
+        <!-- FORM INPUT KONTEN BARU (COLLAPSIBLE UNTUK MOBILE) -->
+        <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-2xl">
+            <button onclick="toggleFormCollapse()" class="w-full flex items-center justify-between text-left focus:outline-none">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-400 border border-indigo-500/10">
+                        <i data-lucide="plus-circle" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <h2 class="text-sm font-bold text-slate-200">Tambah Bahan Konten Baru</h2>
+                        <p class="text-xs text-slate-400">Ketik detail teks caption dan unggah gambar produk Anda</p>
+                    </div>
+                </div>
+                <div class="p-1 bg-slate-800 border border-slate-700 rounded-lg text-slate-300">
+                    <i id="collapseIcon" data-lucide="chevron-down" class="w-4 h-4 transition-transform duration-300"></i>
+                </div>
+            </button>
+
+            <!-- Collapsible Wrapper Form -->
+            <div id="formCollapseWrapper" class="mt-5 space-y-4 hidden border-t border-slate-800/60 pt-4">
+                <form id="contentForm" class="space-y-4">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <!-- Kolom Kiri -->
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Nama Produk / Topik Konten</label>
+                                <input type="text" id="postTitle" required placeholder="Contoh: Promo Ebook Jualan Facebook Master" 
+                                    class="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition text-sm text-slate-200">
+                            </div>
+                            
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Tanggal Posting</label>
+                                    <input type="date" id="postDate" required
+                                        class="w-full px-3 py-2.5 bg-slate-950 border border-slate-800 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition text-sm text-slate-200">
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Kategori / Tag</label>
+                                    <input type="text" id="postCategory" placeholder="Contoh: Edukasi, Soft Sell" 
+                                        class="w-full px-3 py-2.5 bg-slate-950 border border-slate-800 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition text-sm text-slate-200">
+                                </div>
+                            </div>
+
+                            <!-- Image Upload Drag and Drop -->
+                            <div>
+                                <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Gambar Referensi Konten (Opsional)</label>
+                                <div class="relative border-2 border-dashed border-slate-800 hover:border-slate-700 rounded-xl p-4 text-center bg-slate-950/50 cursor-pointer transition">
+                                    <input type="file" id="imageSelector" accept="image/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10">
+                                    <div id="uploadPlaceholder" class="space-y-1">
+                                        <i data-lucide="image-plus" class="mx-auto text-slate-500 w-8 h-8"></i>
+                                        <p class="text-xs text-slate-300">Klik untuk upload atau drag gambar di sini</p>
+                                        <p class="text-[10px] text-slate-500">Maksimal file 1.5MB (Akan di-compress otomatis)</p>
+                                    </div>
+                                    <div id="imagePreviewContainer" class="hidden relative">
+                                        <img id="imagePreview" class="max-h-36 mx-auto rounded-lg border border-slate-800 shadow-md" alt="Preview">
+                                        <button type="button" onclick="clearSelectedImage(event)" class="absolute -top-2 -right-2 bg-rose-600 hover:bg-rose-700 text-white p-1 rounded-full shadow-md z-20">
+                                            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Kolom Kanan (Caption Textarea) -->
+                        <div class="flex flex-col">
+                            <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Teks Caption Promosi Jualan</label>
+                            <textarea id="postCaption" required placeholder="Tulis atau tempel teks caption jualan Facebook Anda di sini..." 
+                                class="w-full flex-grow px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition text-sm text-slate-200 resize-none min-h-[160px] md:min-h-[220px]"></textarea>
+                        </div>
+                    </div>
+
+                    <!-- Tombol Simpan -->
+                    <div class="flex justify-end pt-2">
+                        <button type="submit" class="w-full md:w-auto bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-bold py-2.5 px-6 rounded-xl text-sm flex items-center justify-center gap-2 transition shadow-lg shadow-indigo-500/10">
+                            <i data-lucide="save" class="w-4.5 h-4.5"></i>
+                            Simpan ke Kalender
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- AREA UTAMA DAFTAR GRID KONTEN -->
+        <div class="space-y-4">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                    <h2 class="text-base font-bold text-slate-100 flex items-center gap-2">
+                        <i data-lucide="gallery-horizontal-end" class="text-indigo-400 w-5 h-5"></i>
+                        Galeri Grid Konten Sosial Media
+                    </h2>
+                    <p class="text-xs text-slate-400">Total tersimpan: <span id="itemCount" class="font-bold text-indigo-400">0</span> postingan</p>
+                </div>
+
+                <!-- Tab Filter Status Posting -->
+                <div class="flex items-center gap-1 bg-slate-900 p-1 rounded-xl border border-slate-800 self-start sm:self-auto">
+                    <button onclick="changeFilter('all')" id="filterAll" class="px-3 py-1 text-xs font-bold rounded-lg transition bg-indigo-600 text-white">Semua</button>
+                    <button onclick="changeFilter('pending')" id="filterPending" class="px-3 py-1 text-xs font-bold rounded-lg transition text-slate-400 hover:text-slate-200">Belum Post</button>
+                    <button onclick="changeFilter('done')" id="filterDone" class="px-3 py-1 text-xs font-bold rounded-lg transition text-slate-400 hover:text-slate-200">Selesai</button>
+                </div>
+            </div>
+
+            <!-- CONTAINER CARD GRID -->
+            <div id="gridContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                <!-- Tampilan Default Jika Kosong -->
+                <div id="emptyState" class="col-span-full bg-slate-900/40 border border-dashed border-slate-800 rounded-2xl p-16 text-center shadow-inner">
+                    <div class="w-12 h-12 bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-3 border border-slate-700 text-slate-500">
+                        <i data-lucide="calendar" class="w-6 h-6"></i>
+                    </div>
+                    <h3 class="text-sm font-bold text-slate-300">Belum Ada Konten Terdaftar</h3>
+                    <p class="text-xs text-slate-500 max-w-sm mx-auto mt-1">Mulai dengan menambahkan bahan konten promosi baru Anda lewat form di atas.</p>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- MODAL CADANGAN (BACKUP & RESTORE) -->
+    <div id="backupModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center z-50 hidden p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl relative">
+            <button onclick="toggleBackupModal()" class="absolute top-4 right-4 p-1 rounded-lg bg-slate-800 text-slate-400 hover:text-slate-200">
+                <i data-lucide="x" class="w-4 h-4"></i>
+            </button>
+
+            <div class="flex items-center gap-3 pb-4 border-b border-slate-800">
+                <div class="w-9 h-9 rounded-xl bg-indigo-500/10 flex items-center justify-center text-indigo-400">
+                    <i data-lucide="archive" class="w-5 h-5"></i>
+                </div>
+                <div>
+                    <h3 class="font-extrabold text-slate-100 text-sm">Backup & Ekspor Data</h3>
+                    <p class="text-xs text-slate-400">Cadangkan atau pulihkan data secara manual</p>
+                </div>
+            </div>
+
+            <div class="py-4 space-y-4">
+                <p class="text-xs text-slate-300 leading-relaxed">
+                    Unduh file cadangan offline untuk diolah di Microsoft Excel / Google Sheets atau dipindahkan antar browser secara manual.
+                </p>
+
+                <!-- Download Backup Section -->
+                <div class="space-y-2">
+                    <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Unduh File Cadangan</h4>
+                    <div class="grid grid-cols-2 gap-3">
+                        <button onclick="exportToCSV()" class="flex items-center justify-center gap-2 px-3 py-2.5 bg-slate-950 hover:bg-slate-800 border border-slate-800 text-xs font-bold rounded-xl transition">
+                            <i data-lucide="file-spreadsheet" class="text-emerald-400 w-4 h-4"></i>
+                            <span>Excel (CSV)</span>
+                        </button>
+                        <button onclick="exportToJSON()" class="flex items-center justify-center gap-2 px-3 py-2.5 bg-slate-950 hover:bg-slate-800 border border-slate-800 text-xs font-bold rounded-xl transition">
+                            <i data-lucide="file-code" class="text-amber-400 w-4 h-4"></i>
+                            <span>JSON Backup</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Import / Restore Section -->
+                <div class="space-y-2 pt-3 border-t border-slate-800">
+                    <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Restore / Pulihkan Data</h4>
+                    <p class="text-[10px] text-slate-400 leading-relaxed">Pilih file cadangan `.csv` atau `.json` yang sudah di-export sebelumnya untuk disatukan kembali.</p>
+                    
+                    <div class="relative flex items-center justify-center border-2 border-dashed border-slate-800 hover:border-slate-700 bg-slate-950/30 p-4 rounded-xl text-center cursor-pointer transition">
+                        <input type="file" id="importFileSelector" accept=".csv, .json" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" onchange="handleImportFile(event)">
+                        <div class="space-y-1">
+                            <i data-lucide="upload" class="mx-auto text-slate-500 w-5 h-5"></i>
+                            <p class="text-[11px] text-slate-300 font-semibold">Klik untuk Memilih File</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pt-4 border-t border-slate-800 flex justify-end">
+                <button onclick="toggleBackupModal()" class="px-4 py-2 text-xs font-semibold text-slate-400 hover:bg-slate-800 rounded-xl transition">Tutup</button>
+            </div>
+        </div>
     </div>
-</div>
 
-<script>
-    // ==========================================
-    // SEBELUM DICoba: Isi kedua nilai ini dari Google Cloud Console
-    // ==========================================
-    const CLIENT_ID = '710383009274-4dv21englr75g5bnhf8v89ldbkvhmdep.apps.googleusercontent.com';
-    const API_KEY = 'AIzaSyDgDjmmaIpUjuzz2cMSknMeaR2_fLyzDDE';
-    
-    // Ruang penyimpanan khusus aplikasi (tidak terlihat di Drive biasa pengguna)
-    const SCOPES = 'https://www.googleapis.com/auth/drive.appdata'; 
-    const FILE_NAME = 'sociogrid_backup.json';
+    <!-- TOAST NOTIFICATION -->
+    <div id="toast" class="fixed bottom-6 left-1/2 -translate-x-1/2 md:left-auto md:right-6 md:translate-x-0 bg-slate-800 border border-slate-700 text-white text-xs font-medium py-3 px-4 rounded-xl shadow-2xl flex items-center gap-2 translate-y-24 opacity-0 transition-all duration-300 z-50">
+        <i id="toastIcon" data-lucide="info" class="w-4 h-4 text-indigo-400"></i>
+        <span id="toastMsg">Pesan Notifikasi</span>
+    </div>
 
-    let tokenClient;
-    let gapiInited = false;
-    let gsiInited = false;
-    let currentFileId = null;
+    <!-- SCRIPT UTAMA SINKRONISASI & MANAJEMEN DATA -->
+    <script>
+        // =========================================================================
+        // ⚠️ TAHAP AKHIR: KREDENSIAL GOOGLE CLOUD SUDAH TERPASANG DAN AMAN
+        // =========================================================================
+        const GLOBAL_CLIENT_ID = '710383009274-4dv21englr75g5bnhf8v89ldbkvhmdep.apps.googleusercontent.com';
+        const GLOBAL_API_KEY = 'AIzaSyDgDjmmaIpUjuzz2cMSknMeaR2_fLyzDDE';
 
-    // Perubahan: Memastikan inisialisasi library Google berjalan berurutan
-    window.onload = function() {
-        gapiLoad();
-        gisLoad();
-    };
+        // Konfigurasi Drive AppData
+        const SCOPES = 'https://www.googleapis.com/auth/drive.appdata'; 
+        const FILE_NAME = 'sociogrid_backup.json';
 
-    function gapiLoad() {
-        gapi.load('client', initializeGapiClient);
-    }
+        // State Global Aplikasi
+        let localData = JSON.parse(localStorage.getItem('sociogrid_local_data')) || [];
+        let tokenClient;
+        let gapiInited = false;
+        let gsiInited = false;
+        let isDriveConnected = false;
+        let currentFileId = null;
+        let currentFilter = 'all';
+        let selectedBase64Image = null;
 
-    async function initializeGapiClient() {
-        await gapi.client.init({
-            apiKey: API_KEY,
-            discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'],
-        });
-        gapiInited = true;
-        checkAuthInited();
-    }
+        // Callback pendeteksi pemuatan berkas Google API secara asinkron
+        let gapiScriptLoaded = false;
+        let gisScriptLoaded = false;
 
-    function gisLoad() {
-        tokenClient = google.accounts.oauth2.initTokenClient({
-            client_id: CLIENT_ID,
-            scope: SCOPES,
-            callback: '', // diisi dinamis saat diklik
-        });
-        gsiInited = true;
-        checkAuthInited();
-    }
-
-    function checkAuthInited() {
-        if (gapiInited && gsiInited) {
-            document.getElementById('auth_btn').disabled = false;
+        window.gapiLoaded = function() {
+            gapiScriptLoaded = true;
+            checkScriptsLoaded();
         }
-    }
 
-    function handleAuthClick() {
-        tokenClient.callback = async (resp) => {
-            if (resp.error !== undefined) {
-                throw (resp);
+        window.gisLoaded = function() {
+            gisScriptLoaded = true;
+            checkScriptsLoaded();
+        }
+
+        function checkScriptsLoaded() {
+            if (gapiScriptLoaded && gisScriptLoaded) {
+                loadCredentials();
             }
-            document.getElementById('auth_btn').classList.add('hidden');
-            document.getElementById('signout_btn').classList.remove('hidden');
-            document.getElementById('app_content').classList.remove('hidden');
-            updateStatus('Status: Terhubung! Mencari file database...');
-            
-            // Setelah berhasil login, langsung cari apakah user sudah punya file backup sebelumnya
-            await findOrCreateFile();
-        };
-
-        // Meminta token akses (akan memunculkan pop-up akun Google)
-        if (gapi.client.getToken() === null) {
-            tokenClient.requestAccessToken({prompt: 'consent'});
-        } else {
-            tokenClient.requestAccessToken({prompt: ''});
         }
-    }
 
-    function handleSignoutClick() {
-        const token = gapi.client.getToken();
-        if (token !== null) {
-            google.accounts.oauth2.revoke(token.access_token);
-            gapi.client.setToken(null);
-            document.getElementById('auth_btn').classList.remove('hidden');
-            document.getElementById('signout_btn').classList.add('hidden');
-            document.getElementById('app_content').classList.add('hidden');
-            document.getElementById('content_data').value = '';
-            updateStatus('Status: Koneksi Diputuskan');
+        // DOM Grabber
+        const contentForm = document.getElementById('contentForm');
+        const postTitle = document.getElementById('postTitle');
+        const postDate = document.getElementById('postDate');
+        const postCategory = document.getElementById('postCategory');
+        const postCaption = document.getElementById('postCaption');
+        const imageSelector = document.getElementById('imageSelector');
+        const imagePreview = document.getElementById('imagePreview');
+        const imagePreviewContainer = document.getElementById('imagePreviewContainer');
+        const uploadPlaceholder = document.getElementById('uploadPlaceholder');
+        const gridContainer = document.getElementById('gridContainer');
+        const emptyState = document.getElementById('emptyState');
+        const backupModal = document.getElementById('backupModal');
+        const loginSection = document.getElementById('loginSection');
+        const auth_btn = document.getElementById('auth_btn');
+        const signout_btn = document.getElementById('signout_btn');
+        const driveStatus = document.getElementById('driveStatus');
+        const statusLabel = document.getElementById('statusLabel');
+        const itemCount = document.getElementById('itemCount');
+        const formCollapseWrapper = document.getElementById('formCollapseWrapper');
+        const collapseIcon = document.getElementById('collapseIcon');
+
+        window.addEventListener('DOMContentLoaded', () => {
+            lucide.createIcons();
+            setDefaultDate();
+            renderUI(); // Render data lokal terlebih dahulu tanpa menunggu Google API
+        });
+
+        // Set Rencana Tanggal ke hari ini secara default
+        function setDefaultDate() {
+            const today = new Date().toISOString().split('T')[0];
+            postDate.value = today;
         }
-    }
 
-    function updateStatus(msg) {
-        document.getElementById('status_msg').innerText = msg;
-    }
-
-    // ==========================================
-    // LOGIK MANIPULASI FILE DI GOOGLE DRIVE
-    // ==========================================
-
-    // 1. Cari file backup lama, kalau tidak ada kita buat baru
-    async function findOrCreateFile() {
-        try {
-            const response = await gapi.client.drive.files.list({
-                q: `name = '${FILE_NAME}' and parents in 'appDataFolder'`,
-                spaces: 'appDataFolder',
-                fields: 'files(id, name)'
-            });
-
-            const files = response.result.files;
-            if (files && files.length > 0) {
-                currentFileId = files[0].id;
-                updateStatus('Status: File database ditemukan. Mengunduh data...');
-                await readDataFromDrive(currentFileId);
+        // Toggle Form Input Collapse
+        window.toggleFormCollapse = function() {
+            const isHidden = formCollapseWrapper.classList.contains('hidden');
+            if (isHidden) {
+                formCollapseWrapper.classList.remove('hidden');
+                collapseIcon.style.transform = 'rotate(180deg)';
             } else {
-                updateStatus('Status: Membuat file database baru di Drive Anda...');
-                await createInitialFile();
+                formCollapseWrapper.classList.add('hidden');
+                collapseIcon.style.transform = 'rotate(0deg)';
             }
-        } catch (err) {
-            updateStatus('Error mencari file: ' + err.message);
         }
-    }
 
-    // 2. Baca isi file JSON dari Drive
-    async function readDataFromDrive(fileId) {
-        try {
-            const response = await gapi.client.drive.files.get({
-                fileId: fileId,
-                alt: 'media'
-            });
+        // Toggle Modal Backup
+        window.toggleBackupModal = function() {
+            backupModal.classList.toggle('hidden');
+        }
+
+        // Tampilkan Toast Notifikasi
+        window.showToast = function(message, icon = "info") {
+            const toast = document.getElementById('toast');
+            const toastMsg = document.getElementById('toastMsg');
+            const toastIcon = document.getElementById('toastIcon');
+
+            toastMsg.textContent = message;
+            toastIcon.setAttribute('data-lucide', icon);
+            lucide.createIcons();
+
+            toast.classList.remove('translate-y-24', 'opacity-0');
+            toast.classList.add('translate-y-0', 'opacity-100');
+
+            setTimeout(() => {
+                toast.classList.add('translate-y-24', 'opacity-0');
+                toast.classList.remove('translate-y-0', 'opacity-100');
+            }, 3000);
+        }
+
+        // Handle Unggah dan Auto-Compress Gambar
+        imageSelector.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    const img = new Image();
+                    img.onload = function() {
+                        const canvas = document.createElement('canvas');
+                        const MAX_WIDTH = 450;
+                        const scaleSize = MAX_WIDTH / img.width;
+                        canvas.width = MAX_WIDTH;
+                        canvas.height = img.height * scaleSize;
+
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                        
+                        selectedBase64Image = canvas.toDataURL('image/jpeg', 0.7); // Compress 70%
+                        imagePreview.src = selectedBase64Image;
+                        uploadPlaceholder.classList.add('hidden');
+                        imagePreviewContainer.classList.remove('hidden');
+                    };
+                    img.src = event.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        window.clearSelectedImage = function(e) {
+            if (e) e.stopPropagation();
+            selectedBase64Image = null;
+            imageSelector.value = '';
+            imagePreview.src = '';
+            imagePreviewContainer.classList.add('hidden');
+            uploadPlaceholder.classList.remove('hidden');
+        }
+
+        // Deteksi Kredensial Global & Inisialisasi API Google
+        function loadCredentials() {
+            if (GLOBAL_CLIENT_ID && GLOBAL_CLIENT_ID !== 'MASUKKAN_CLIENT_ID_ANDA_DI_SINI.apps.googleusercontent.com' &&
+                GLOBAL_API_KEY && GLOBAL_API_KEY !== 'MASUKKAN_API_KEY_ANDA_DI_SINI') {
+                loginSection.classList.remove('hidden');
+                initGoogleAPI(GLOBAL_CLIENT_ID, GLOBAL_API_KEY);
+            } else {
+                loginSection.classList.add('hidden');
+                updateDriveBadge(false);
+            }
+        }
+
+        // Jalankan GAPI & GIS Client secara aman setelah naskah siap
+        function initGoogleAPI(clientId, apiKey) {
+            try {
+                gapi.load('client', async () => {
+                    try {
+                        await gapi.client.init({
+                            apiKey: apiKey,
+                            discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'],
+                        });
+                        gapiInited = true;
+                        checkIfBothInited(clientId);
+                    } catch (err) {
+                        console.error("GAPI Init Error: ", err);
+                        showToast("API Key salah atau belum diotorisasi Google Cloud!", "alert-triangle");
+                    }
+                });
+
+                tokenClient = google.accounts.oauth2.initTokenClient({
+                    client_id: clientId,
+                    scope: SCOPES,
+                    callback: '', 
+                });
+                gsiInited = true;
+                checkIfBothInited(clientId);
+            } catch (err) {
+                console.error("GIS Init Error: ", err);
+            }
+        }
+
+        function checkIfBothInited(clientId) {
+            if (gapiInited && gsiInited) {
+                auth_btn.disabled = false;
+                const token = gapi.client.getToken();
+                if (token !== null) {
+                    isDriveConnected = true;
+                    updateDriveBadge(true);
+                }
+            }
+        }
+
+        // Alur Login Autentikasi Google
+        window.handleAuthClick = function() {
+            if (!tokenClient) {
+                showToast("Inisialisasi sistem tertunda.", "alert-circle");
+                return;
+            }
+
+            tokenClient.callback = async (resp) => {
+                if (resp.error !== undefined) {
+                    showToast("Proses masuk Google dibatalkan.", "alert-triangle");
+                    throw (resp);
+                }
+                auth_btn.classList.add('hidden');
+                signout_btn.classList.remove('hidden');
+                updateDriveBadge(true, "Sinkronisasi Cloud...");
+                
+                await findOrCreateFileOnDrive();
+            };
+
+            if (gapi.client.getToken() === null) {
+                tokenClient.requestAccessToken({prompt: 'consent'});
+            } else {
+                tokenClient.requestAccessToken({prompt: ''});
+            }
+        }
+
+        window.handleSignoutClick = function() {
+            const token = gapi.client.getToken();
+            if (token !== null) {
+                google.accounts.oauth2.revoke(token.access_token);
+                gapi.client.setToken(null);
+                auth_btn.classList.remove('hidden');
+                signout_btn.classList.add('hidden');
+                isDriveConnected = false;
+                updateDriveBadge(false);
+                showToast("Sesi akun Google diputuskan.", "log-out");
+            }
+        }
+
+        function updateDriveBadge(connected, text = "") {
+            if (connected) {
+                driveStatus.className = "text-[10px] font-semibold px-2.5 py-1 rounded-full flex items-center gap-1.5 bg-emerald-950/40 border border-emerald-900 text-emerald-400";
+                statusLabel.textContent = text || "Drive Terhubung";
+                auth_btn.classList.add('hidden');
+                signout_btn.classList.remove('hidden');
+            } else {
+                driveStatus.className = "text-[10px] font-semibold px-2.5 py-1 rounded-full flex items-center gap-1.5 bg-slate-800 border border-slate-700 text-slate-400";
+                statusLabel.textContent = "Offline (Lokal)";
+                auth_btn.classList.remove('hidden');
+                signout_btn.classList.add('hidden');
+            }
+        }
+
+        // SINKRONISASI BACA-TULIS FILE DI GOOGLE DRIVE (APPDATA)
+        async function findOrCreateFileOnDrive() {
+            try {
+                const response = await gapi.client.drive.files.list({
+                    q: `name = '${FILE_NAME}' and parents in 'appDataFolder'`,
+                    spaces: 'appDataFolder',
+                    fields: 'files(id, name)'
+                });
+
+                const files = response.result.files;
+                if (files && files.length > 0) {
+                    currentFileId = files[0].id;
+                    updateDriveBadge(true, "Drive Sinkron");
+                    await readDataFromDrive(currentFileId);
+                } else {
+                    updateDriveBadge(true, "Membuat Cadangan...");
+                    await createInitialFileOnDrive();
+                }
+            } catch (err) {
+                console.error(err);
+                showToast("Sinkronisasi otomatis Google Drive tertunda.", "alert-triangle");
+            }
+        }
+
+        async function readDataFromDrive(fileId) {
+            try {
+                const response = await gapi.client.drive.files.get({
+                    fileId: fileId,
+                    alt: 'media'
+                });
+                
+                if (response.result && response.result.data) {
+                    localData = response.result.data;
+                    localStorage.setItem('sociogrid_local_data', JSON.stringify(localData));
+                    renderUI();
+                    showToast("Data tersinkronisasi dari Google Drive!", "cloud-lightning");
+                }
+            } catch (err) {
+                console.error(err);
+                showToast("Gagal mengambil database cloud.", "alert-triangle");
+            }
+        }
+
+        async function createInitialFileOnDrive() {
+            const boundary = 'foo_bar_baz';
+            const delimiter = "\r\n--" + boundary + "\r\n";
+            const close_delimiter = "\r\n--" + boundary + "--";
+
+            const metadata = {
+                'name': FILE_NAME,
+                'parents': ['appDataFolder'],
+                'mimeType': 'application/json'
+            };
+
+            const initialContent = { info: "Database Kalender Konten Pertama", data: localData };
+
+            const multipartRequestBody =
+                delimiter +
+                'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+                JSON.stringify(metadata) +
+                delimiter +
+                'Content-Type: application/json\r\n\r\n' +
+                JSON.stringify(initialContent) +
+                close_delimiter;
+
+            try {
+                const response = await gapi.client.request({
+                    'path': '/upload/drive/v3/files',
+                    'method': 'POST',
+                    'params': {'uploadType': 'multipart'},
+                    'headers': {
+                        'Content-Type': 'multipart/related; boundary="' + boundary + '"'
+                    },
+                    'body': multipartRequestBody
+                });
+                currentFileId = response.result.id;
+                showToast("Berhasil mencadangkan sesi baru ke Drive!", "check-circle");
+                updateDriveBadge(true, "Drive Sinkron");
+            } catch (err) {
+                console.error(err);
+                showToast("Gagal mendaftarkan file di Drive.", "alert-triangle");
+            }
+        }
+
+        async function syncDataToDrive() {
+            if (!currentFileId || !gapiInited) return;
             
-            // Tampilkan data mentah ke textarea
-            document.getElementById('content_data').value = JSON.stringify(response.result, null, 2);
-            updateStatus('Status: Data berhasil disinkronkan dari Google Drive!');
-        } catch (err) {
-            updateStatus('Gagal membaca data: ' + err.message);
+            const payload = {
+                info: "Database Kalender Konten Update",
+                data: localData,
+                lastUpdated: new Date().toISOString()
+            };
+
+            try {
+                await gapi.client.request({
+                    'path': '/upload/drive/v3/files/' + currentFileId,
+                    'method': 'PATCH',
+                    'params': {'uploadType': 'media'},
+                    'body': JSON.stringify(payload)
+                });
+            } catch (err) {
+                console.error(err);
+                showToast("Gagal memperbarui cadangan awan.", "alert-triangle");
+            }
         }
-    }
 
-    // 3. Buat file inisial jika user baru pertama kali pakai aplikasi
-    async function createInitialFile() {
-        const boundary = 'foo_bar_baz';
-        const delimiter = "\r\n--" + boundary + "\r\n";
-        const close_delimiter = "\r\n--" + boundary + "--";
+        // SUBMIT FORM KONTEN BARU
+        contentForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
 
-        const metadata = {
-            'name': FILE_NAME,
-            'parents': ['appDataFolder'],
-            'mimeType': 'application/json'
-        };
+            const title = postTitle.value.trim();
+            const date = postDate.value;
+            const category = postCategory.value.trim() || "Promosi";
+            const caption = postCaption.value.trim();
 
-        const initialContent = { info: "Database Kalender Konten Pertama", data: [] };
+            const newItem = {
+                id: Date.now() + Math.random().toString(36).substr(2, 9),
+                title,
+                date,
+                category,
+                caption,
+                image: selectedBase64Image || "",
+                isPosted: false
+            };
 
-        const multipartRequestBody =
-            delimiter +
-            'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
-            JSON.stringify(metadata) +
-            delimiter +
-            'Content-Type: application/json\r\n\r\n' +
-            JSON.stringify(initialContent) +
-            close_delimiter;
+            localData.unshift(newItem);
+            localStorage.setItem('sociogrid_local_data', JSON.stringify(localData));
+            
+            showToast("Konten berhasil dijadwalkan!", "check-circle");
+            
+            if (currentFileId) {
+                await syncDataToDrive();
+            }
 
-        try {
-            const response = await gapi.client.request({
-                'path': '/upload/drive/v3/files',
-                'method': 'POST',
-                'params': {'uploadType': 'multipart'},
-                'headers': {
-                    'Content-Type': 'multipart/related; boundary="' + boundary + '"'
-                },
-                'body': multipartRequestBody
+            contentForm.reset();
+            setDefaultDate();
+            clearSelectedImage();
+            renderUI();
+
+            if (window.innerWidth < 768) {
+                toggleFormCollapse();
+            }
+        });
+
+        // SALIN CAPTION KE CLIPBOARD
+        window.copyCaptionText = function(id) {
+            const item = localData.find(d => d.id === id);
+            if (item) {
+                const tempTextArea = document.createElement("textarea");
+                tempTextArea.value = item.caption;
+                document.body.appendChild(tempTextArea);
+                tempTextArea.select();
+                try {
+                    document.execCommand('copy');
+                    showToast("Caption promosi tersalin!", "copy");
+                } catch (err) {
+                    showToast("Gagal menyalin teks.", "alert-triangle");
+                }
+                document.body.removeChild(tempTextArea);
+            }
+        }
+
+        // TOGGLE STATUS POSTING
+        window.togglePostedStatus = async function(id) {
+            const item = localData.find(d => d.id === id);
+            if (item) {
+                item.isPosted = !item.isPosted;
+                localStorage.setItem('sociogrid_local_data', JSON.stringify(localData));
+                renderUI();
+                showToast(item.isPosted ? "Postingan Selesai!" : "Penjadwalan Diatur Ulang", "clock");
+                
+                if (currentFileId) {
+                    await syncDataToDrive();
+                }
+            }
+        }
+
+        // HAPUS ITEM KONTEN
+        window.deleteItem = async function(id) {
+            if (!confirm("Hapus bahan konten jualan ini?")) return;
+
+            localData = localData.filter(d => d.id !== id);
+            localStorage.setItem('sociogrid_local_data', JSON.stringify(localData));
+            renderUI();
+            showToast("Bahan konten berhasil dihapus.", "trash-2");
+
+            if (currentFileId) {
+                await syncDataToDrive();
+            }
+        }
+
+        // Filter Grid Tab
+        window.changeFilter = function(filter) {
+            currentFilter = filter;
+            const filters = ['all', 'pending', 'done'];
+            filters.forEach(f => {
+                const el = document.getElementById(`filter${f.charAt(0).toUpperCase() + f.slice(1)}`);
+                if (f === filter) {
+                    el.className = "px-3 py-1 text-xs font-bold rounded-lg transition bg-indigo-600 text-white";
+                } else {
+                    el.className = "px-3 py-1 text-xs font-bold rounded-lg transition text-slate-400 hover:text-slate-200";
+                }
             });
-            currentFileId = response.result.id;
-            document.getElementById('content_data').value = JSON.stringify(initialContent, null, 2);
-            updateStatus('Status: File baru berhasil dibuat!');
-        } catch (err) {
-            updateStatus('Gagal membuat file baru: ' + err.message);
-        }
-    }
-
-    // 4. Update data (Menyimpan teks dari textarea kembali ke Drive)
-    async function saveDataToDrive() {
-        if (!currentFileId) return;
-        updateStatus('Sedang menyimpan ke Drive...');
-        
-        const rawText = document.getElementById('content_data').value;
-        let bodyData;
-        
-        try {
-            // Pastikan input berupa JSON yang valid sebelum dikirim
-            bodyData = JSON.parse(rawText);
-        } catch(e) {
-            // Jika user ngetik teks biasa, kita bungkus biar jadi JSON yang valid
-            bodyData = { textData: rawText, lastUpdated: new Date().toISOString() };
+            renderUI();
         }
 
-        try {
-            await gapi.client.request({
-                'path': '/upload/drive/v3/files/' + currentFileId,
-                'method': 'PATCH',
-                'params': {'uploadType': 'media'},
-                'body': JSON.stringify(bodyData)
+        // ==========================================
+        // EKSPOR & IMPOR DATA (CSV & JSON)
+        // ==========================================
+
+        window.exportToCSV = function() {
+            if (localData.length === 0) {
+                showToast("Tidak ada data untuk diekspor.", "alert-circle");
+                return;
+            }
+
+            let csvContent = "\uFEFF"; 
+            csvContent += "ID,Tanggal Posting,Kategori,Judul,Caption,Status Posting\n";
+
+            localData.forEach(item => {
+                const cleanId = (item.id || "").toString().replace(/"/g, '""');
+                const cleanDate = (item.date || "").toString().replace(/"/g, '""');
+                const cleanCategory = (item.category || "").toString().replace(/"/g, '""');
+                const cleanTitle = (item.title || "").toString().replace(/"/g, '""');
+                const cleanCaption = (item.caption || "").toString().replace(/"/g, '""');
+                const cleanStatus = item.isPosted ? "SUDAH POST" : "BELUM POST";
+
+                csvContent += `"${cleanId}","${cleanDate}","${cleanCategory}","${cleanTitle}","${cleanCaption}","${cleanStatus}"\n`;
             });
-            updateStatus('Status: Berhasil disimpan ke Google Drive!');
-        } catch (err) {
-            updateStatus('Gagal menyimpan data: ' + err.message);
+
+            const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.setAttribute("href", url);
+            link.setAttribute("download", `SocioGrid_Excel_Backup_${new Date().toISOString().slice(0, 10)}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            showToast("Excel CSV berhasil diunduh!", "check-circle");
         }
-    }
-</script>
+
+        window.exportToJSON = function() {
+            if (localData.length === 0) {
+                showToast("Tidak ada data untuk diekspor.", "alert-circle");
+                return;
+            }
+
+            const payload = {
+                application: "SocioGrid",
+                exportDate: new Date().toISOString(),
+                data: localData
+            };
+
+            const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.setAttribute("href", url);
+            link.setAttribute("download", `SocioGrid_Database_Backup_${new Date().toISOString().slice(0, 10)}.json`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            showToast("Backup JSON berhasil diunduh!", "check-circle");
+        }
+
+        window.handleImportFile = function(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = async function(e) {
+                const text = e.target.result;
+
+                if (file.name.endsWith('.json')) {
+                    try {
+                        const parsed = JSON.parse(text);
+                        if (parsed && Array.isArray(parsed.data)) {
+                            mergeImportedData(parsed.data);
+                        } else if (Array.isArray(parsed)) {
+                            mergeImportedData(parsed);
+                        } else {
+                            showToast("Skema JSON backup ditolak.", "alert-triangle");
+                        }
+                    } catch (err) {
+                        showToast("File JSON rusak.", "alert-triangle");
+                    }
+                } else if (file.name.endsWith('.csv')) {
+                    try {
+                        const csvData = parseCSV(text);
+                        if (csvData && csvData.length > 0) {
+                            mergeImportedData(csvData);
+                        } else {
+                            showToast("File CSV kosong.", "alert-triangle");
+                        }
+                    } catch (err) {
+                        showToast("Gagal membaca struktur CSV.", "alert-triangle");
+                    }
+                }
+                event.target.value = ''; 
+            };
+            reader.readAsText(file);
+        }
+
+        function parseCSV(text) {
+            const lines = [];
+            const rows = text.split(/\r?\n/);
+            if (rows.length <= 1) return [];
+
+            for (let i = 1; i < rows.length; i++) {
+                if (!rows[i].trim()) continue;
+                
+                const matches = rows[i].match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || [];
+                const rowData = matches.map(val => val.replace(/^"|"$/g, '').replace(/""/g, '"'));
+
+                if (rowData.length > 0) {
+                    lines.push({
+                        id: rowData[0] || (Date.now() + Math.random().toString(36).substr(2, 9)),
+                        date: rowData[1] || new Date().toISOString().split('T')[0],
+                        category: rowData[2] || "Umum",
+                        title: rowData[3] || "Data Impor",
+                        caption: rowData[4] || "",
+                        image: "", 
+                        isPosted: (rowData[5] || "").toUpperCase() === "SUDAH POST"
+                    });
+                }
+            }
+            return lines;
+        }
+
+        async function mergeImportedData(newData) {
+            let addedCount = 0;
+            newData.forEach(newItem => {
+                const exists = localData.some(item => item.id === newItem.id);
+                if (!exists) {
+                    localData.push(newItem);
+                    addedCount++;
+                }
+            });
+
+            if (addedCount > 0) {
+                localData.sort((a, b) => new Date(b.date) - new Date(a.date));
+                localStorage.setItem('sociogrid_local_data', JSON.stringify(localData));
+                renderUI();
+                showToast(`Impor Sukses! ${addedCount} data baru dimasukkan.`, "check-circle");
+                
+                if (currentFileId) {
+                    await syncDataToDrive();
+                }
+            } else {
+                showToast("Semua data di file sudah ada di sistem Anda.", "info");
+            }
+            toggleBackupModal();
+        }
+
+        // RENDER GRID KONTEN KE LAYAR
+        function renderUI() {
+            const filteredData = localData.filter(item => {
+                if (currentFilter === 'pending') return !item.isPosted;
+                if (currentFilter === 'done') return item.isPosted;
+                return true;
+            });
+
+            itemCount.textContent = localData.length;
+
+            if (filteredData.length === 0) {
+                gridContainer.innerHTML = '';
+                gridContainer.appendChild(emptyState);
+                return;
+            }
+
+            emptyState.classList.add('hidden');
+
+            gridContainer.innerHTML = filteredData.map(item => {
+                const dateObj = new Date(item.date);
+                const options = { day: 'numeric', month: 'short', year: 'numeric' };
+                const formattedDate = dateObj.toLocaleDateString('id-ID', options);
+
+                return `
+                    <div class="bg-slate-900 border ${item.isPosted ? 'border-emerald-500/40 bg-emerald-950/5' : 'border-slate-800'} rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl hover:border-slate-700/80 transition duration-200 flex flex-col justify-between">
+                        <div>
+                            <!-- Header Kartu -->
+                            <div class="p-4 pb-3 flex items-start justify-between gap-2 border-b border-slate-800/60">
+                                <div class="truncate max-w-[170px] sm:max-w-[210px]">
+                                    <span class="text-[9px] font-bold text-slate-400 uppercase tracking-wider bg-slate-950 border border-slate-800 px-2 py-0.5 rounded-md">${item.category}</span>
+                                    <h3 class="text-sm font-bold text-slate-100 mt-1.5 leading-snug truncate" title="${item.title}">${item.title}</h3>
+                                </div>
+                                <div class="flex items-center gap-1.5 shrink-0">
+                                    <span class="text-[9px] font-bold text-indigo-300 bg-indigo-950/60 px-2 py-0.5 rounded border border-indigo-900">${formattedDate}</span>
+                                    <button onclick="deleteItem('${item.id}')" class="text-slate-500 hover:text-rose-500 transition p-1 hover:bg-slate-800 rounded-lg">
+                                        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Gambar Thumbnail -->
+                            ${item.image ? `
+                                <div class="w-full h-40 overflow-hidden relative bg-slate-950 border-b border-slate-800/30">
+                                    <img src="${item.image}" class="w-full h-full object-cover" alt="Visual Referensi">
+                                </div>
+                            ` : ''}
+
+                            <!-- Area Teks Caption -->
+                            <div class="p-4">
+                                <div class="bg-slate-950/60 border border-slate-800/60 rounded-xl p-3.5 text-xs text-slate-300 leading-relaxed font-sans whitespace-pre-wrap max-h-36 overflow-y-auto">
+                                    ${item.caption}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Panel Tombol Aksi -->
+                        <div class="p-4 pt-0 flex items-center justify-between gap-3 border-t border-slate-800/30 mt-2">
+                            <button onclick="copyCaptionText('${item.id}')" class="flex-grow sm:flex-grow-0 flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-300 bg-slate-800 hover:bg-slate-700 rounded-lg transition border border-slate-700">
+                                <i data-lucide="clipboard" class="w-3.5 h-3.5"></i>
+                                <span>Salin Teks</span>
+                            </button>
+
+                            <button onclick="togglePostedStatus('${item.id}')" class="flex-grow sm:flex-grow-0 flex items-center justify-center gap-1.5 px-4 py-1.5 text-xs font-bold rounded-lg transition ${
+                                item.isPosted 
+                                ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-950/10' 
+                                : 'bg-slate-800 hover:bg-indigo-600 text-slate-300 hover:text-white border border-slate-700'
+                            }">
+                                <i data-lucide="${item.isPosted ? 'check' : 'clock'}" class="w-3.5 h-3.5"></i>
+                                <span>${item.isPosted ? 'Sudah Post' : 'Belum Post'}</span>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            lucide.createIcons();
+        }
+    </script>
 </body>
 </html>
